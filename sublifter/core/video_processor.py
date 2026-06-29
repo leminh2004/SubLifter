@@ -40,10 +40,9 @@ class VideoProcessor:
         self.lang_preset = lang_preset
         self.spell_checker = SpellCheckerPipeline() if use_spellcheck else None
 
-    def process_video(self, video_path: str, progress_callback=None):
+    def process_video_yield(self, video_path: str):
         """
-        Process the video and extract subtitles.
-        Yields progress (0.0 to 1.0) and current status text if progress_callback is not provided.
+        Process the video and yield progress (progress_ratio, elapsed_seconds, eta_seconds, preview_subtitles).
         """
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -162,16 +161,15 @@ class VideoProcessor:
             
             # Progress reporting
             progress = frame_idx / total_frames
-            if progress_callback:
-                elapsed = time.time() - start_time
-                if progress > 0:
-                    eta = elapsed / progress - elapsed
-                    mins = int(eta // 60)
-                    secs = int(eta % 60)
-                    eta_str = f"{mins:02d}:{secs:02d}"
-                else:
-                    eta_str = "--:--"
-                progress_callback(progress, f"Đang xử lý: {timestamp:.1f}giây / {duration:.1f}giây (Còn lại: {eta_str})")
+            elapsed = time.time() - start_time
+            eta = (elapsed / progress - elapsed) if progress > 0 else 0
+            
+            # Combine active subtitle with accumulated subtitles for preview
+            preview_subs = list(subtitles)
+            if active_sub:
+                preview_subs.append(active_sub)
+                
+            yield progress, elapsed, eta, preview_subs
             
             frame_idx += step
 
@@ -183,7 +181,23 @@ class VideoProcessor:
         
         # Post-process subtitles to merge very close blocks and remove noise
         cleaned_subtitles = self._clean_subtitles(subtitles)
-        return cleaned_subtitles
+        yield 1.0, time.time() - start_time, 0.0, cleaned_subtitles
+
+    def process_video(self, video_path: str, progress_callback=None):
+        """
+        Process the video and extract subtitles. Returns the final list of subtitles.
+        """
+        subtitles = []
+        for progress, elapsed, eta, current_subs in self.process_video_yield(video_path):
+            subtitles = current_subs
+            if progress_callback:
+                try:
+                    progress_callback(progress, elapsed, eta, current_subs)
+                except TypeError:
+                    mins = int(eta // 60)
+                    secs = int(eta % 60)
+                    progress_callback(progress, f"Còn lại: {mins:02d}:{secs:02d}")
+        return subtitles
 
     def _clean_subtitles(self, subtitles):
         """Merge adjacent subtitles with identical text and filter out short empty noise."""

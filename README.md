@@ -11,8 +11,9 @@ SubLifter là một công cụ Python được thiết kế để trích xuất 
 - **Bộ tự động sửa lỗi chính tả & cách từ (Spell Checker & Auto-Spacing)**: Chạy thời gian thực song song với tiến trình quét. Tự động tách các từ bị dính liền do khoảng cách ký tự hẹp (ví dụ: `Icareofus` -> `I care of us`) và sửa lỗi chính tả tiếng Anh (ví dụ: `talec` -> `take`).
 - **Bảo toàn từ phiên âm Romaji tiếng Nhật**: Tích hợp bộ lọc nhận dạng cấu trúc âm tiết tiếng Nhật (Consonant-Vowel) và whitelist từ vựng Anime phổ biến (`Aqours`, `LoveLive`, `watashi`, `yume`, tên nhân vật...). Đảm bảo các từ này không bị bộ sửa lỗi tiếng Anh nhận nhầm và sửa sai.
 - **Tăng tốc phần cứng GPU**: Hỗ trợ tăng tốc nhận diện phụ đề gấp 10-20 lần bằng Card đồ họa NVIDIA (thông qua thư viện CUDA).
-- **Khắc phục lỗi trích xuất phụ đề tĩnh**: Tự động kế thừa văn bản của khung hình trước (`prev_text`) khi bỏ qua khung hình tĩnh, ngăn chặn triệt để hiện tượng mất chữ hoặc nhấp nháy phụ đề.
+- **Khắc phục lỗi phụ đề tĩnh**: Tự động kế thừa văn bản của khung hình trước (prev_text) khi bỏ qua khung hình tĩnh, ngăn chặn triệt để hiện tượng mất chữ hoặc nhấp nháy phụ đề.
 - **Lọc nhiễu hạt đơn khung hình**: Tự động phát hiện và loại bỏ các ký tự rác hoặc số ngẫu nhiên chỉ tồn tại trong 1 khung hình quét (như `M`, `27`, `t`, `0`).
+- **Trực quan hóa thời gian thực & Tiến trình HH:MM:SS**: Hiển thị danh sách phụ đề đã quét và sửa lỗi tự động chạy ra liên tục theo thời gian thực. Bổ sung hộp thoại Tiến độ công việc tối giản hiển thị thanh tiến trình và thời gian hoạt động/thời gian còn lại định dạng chuẩn `giờ:phút:giây` (`00:00:00`).
 - **Định dạng xuất**: Hỗ trợ lưu trữ phụ đề dưới dạng tệp `.srt` hoặc `.ass`.
 
 ---
@@ -61,11 +62,11 @@ SubLifter là một công cụ Python được thiết kế để trích xuất 
 
 **Các bước sử dụng:**
 1. **Tải video lên** ở khung bên trái.
-2. Kiểm tra **Ảnh xem trước** ở khung bên phải: Hai khung màu đỏ thể hiện chính xác 2 vùng quét cố định (Biên trên 20% và Biên dưới 20%, chiều ngang thụt lề 7.5% mỗi bên). Ảnh phụ đề xếp chồng cũng sẽ được hiển thị ngay bên dưới để bạn quan sát.
+2. Kiểm tra **Ảnh xem trước** ở khung bên phải: Hai khung màu đỏ thể hiện chính xác 2 vùng quét cố định (Biên trên 20% và Biên dưới 20%, chiều ngang thụt lề 7.5% mỗi bên) để bạn quan sát trực quan.
 3. Chọn định dạng phụ đề xuất ra mong muốn (`.srt` hoặc `.ass`).
 4. Chọn **Ngôn ngữ nhận diện** (ví dụ: `Tiếng Việt + Tiếng Anh` hoặc `Tiếng Nhật + Tiếng Anh`).
 5. Tùy chọn bật/tắt **Tự động sửa lỗi chính tả & cách từ (Spell Checker)**. Mặc định tính năng này luôn bật.
-6. Bấm nút **🚀 Bắt đầu trích xuất phụ đề** để chạy, xem nhật ký log trực quan và tải tệp phụ đề về máy.
+6. Bấm nút **🚀 Bắt đầu trích xuất phụ đề** để chạy, xem trực tiếp danh sách phụ đề trích xuất và sửa lỗi chạy ra trên màn hình theo thời gian thực, đồng thời theo dõi thanh tiến độ và thời gian đếm chuẩn `giờ:phút:giây` ở hộp thoại **Tiến độ công việc** bên dưới. Sau khi hoàn tất, tải tệp phụ đề về máy.
 
 ---
 

@@ -3,21 +3,51 @@ import cv2
 import os
 import sys
 import numpy as np
+import time
 from sublifter.core.ocr_engine import OCREngine
 from sublifter.core.video_processor import VideoProcessor
 from sublifter.core.sub_writer import write_srt, write_ass
 
+def format_time(seconds):
+    """Format seconds into HH:MM:SS string."""
+    if seconds is None or seconds < 0:
+        return "00:00:00"
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+def make_progress_html(percent, elapsed, eta):
+    """Generate custom premium progress bar HTML with times in HH:MM:SS."""
+    percent_val = int(percent * 100)
+    elapsed_str = format_time(elapsed)
+    eta_str = format_time(eta)
+    
+    html = f"""
+    <div style='border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9; font-family: sans-serif; height: auto;'>
+        <p style='margin: 0; font-size: 14px; font-weight: bold; color: #333;'>Tiến độ công việc: {percent_val}%</p>
+        <div style='background-color: #eee; border-radius: 4px; height: 12px; margin: 8px 0; overflow: hidden;'>
+            <div style='background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%); width: {percent_val}%; height: 100%; transition: width 0.2s ease;'></div>
+        </div>
+        <div style='display: flex; justify-content: space-between; font-size: 12px; color: #555;'>
+            <span>Thời gian đã hoạt động: <b>{elapsed_str}</b></span>
+            <span>Thời gian còn lại: <b>{eta_str}</b></span>
+        </div>
+    </div>
+    """
+    return html
+
 def get_preview(video_path):
     """Generate a full frame with crop boundary overlay (85% centered horizontal, top+bottom 20% vertical)."""
     if not video_path or not os.path.exists(video_path):
-        return None, None
+        return None
         
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     cap.release()
     
     if not ret:
-        return None, None
+        return None
         
     h, w, _ = frame.shape
     
@@ -35,28 +65,15 @@ def get_preview(video_path):
     cv2.rectangle(overlay_frame, (x_start, 0), (x_end, y_top_end), (0, 0, 255), 3)
     cv2.rectangle(overlay_frame, (x_start, y_bottom_start), (x_end, h), (0, 0, 255), 3)
     
-    # Crop and stack the two regions
-    top_crop = frame[0:y_top_end, x_start:x_end]
-    bottom_crop = frame[y_bottom_start:h, x_start:x_end]
-    
-    if top_crop.size > 0 and bottom_crop.size > 0:
-        cropped = np.vstack([top_crop, bottom_crop])
-    else:
-        cropped = top_crop if top_crop.size > 0 else bottom_crop
-        
     # Convert to RGB for Gradio
     overlay_frame = cv2.cvtColor(overlay_frame, cv2.COLOR_BGR2RGB)
     
-    if cropped.size > 0:
-        cropped_rgb = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
-    else:
-        cropped_rgb = None
-        
-    return overlay_frame, cropped_rgb
+    return overlay_frame
 
-def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck, progress=gr.Progress()):
+def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck):
     if not video_path or not os.path.exists(video_path):
-        return None, "Lỗi: Vui lòng tải lên hoặc chọn một tệp video hợp lệ."
+        yield None, "Lỗi: Vui lòng tải lên hoặc chọn một tệp video hợp lệ.", make_progress_html(0.0, 0.0, 0.0)
+        return
         
     lang_map = {
         "Tiếng Việt + Tiếng Anh": ["vi", "en"],
@@ -68,15 +85,14 @@ def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck, progr
     }
     langs = lang_map.get(lang_preset, ["vi", "en"])
     if not langs:
-        return None, "Lỗi: Ngôn ngữ không hợp lệ."
+        yield None, "Lỗi: Ngôn ngữ không hợp lệ.", make_progress_html(0.0, 0.0, 0.0)
+        return
         
     try:
-        progress(0, desc="Đang khởi tạo công cụ OCR...")
+        # Initialize ocr
         ocr = OCREngine(languages=langs, confidence_threshold=0.35)
         
-        # Fixed optimal settings under the hood:
-        # - Horizontal: 85% width centered (xmin=0.075, xmax=0.925)
-        # - Vertical: Top 20% + Bottom 20% (double_zone=True, ymin=0.8, ymax=1.0)
+        # Fixed optimal settings under the hood
         processor = VideoProcessor(
             ocr_engine=ocr,
             sample_rate=1.5,
@@ -92,34 +108,38 @@ def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck, progr
             lang_preset=lang_preset
         )
         
-        def progress_callback(prog, status_text):
-            progress(prog, desc=status_text)
-            
-        progress(0, desc="Đang xử lý các khung hình video...")
-        subtitles = processor.process_video(video_path, progress_callback=progress_callback)
+        # Start generator
+        generator = processor.process_video_yield(video_path)
         
-        # Save output subtitle file
+        for progress, elapsed, eta, current_subs in generator:
+            # Build real-time subtitle preview text
+            subs_text = ""
+            for idx, sub in enumerate(current_subs, 1):
+                subs_text += f"[{format_time(sub['start'])} -> {format_time(sub['end'])}] {sub['text']}\n"
+            
+            # Yield progress and real-time subtitles
+            yield gr.update(visible=False), subs_text, make_progress_html(progress, elapsed, eta)
+            
+        # Final result (after generator finished, the last item has cleaned_subtitles)
         base, _ = os.path.splitext(video_path)
         output_path = f"{base}_extracted.{out_format}"
         
         if out_format == "srt":
-            write_srt(subtitles, output_path)
+            write_srt(current_subs, output_path)
         else:
-            write_ass(subtitles, output_path)
+            write_ass(current_subs, output_path)
             
-        # Generate summary text
-        summary = f"Đã trích xuất thành công {len(subtitles)} đoạn phụ đề.\nLưu tại: {output_path}\n\n--- Xem trước (50 dòng đầu tiên) ---\n"
-        for idx, sub in enumerate(subtitles[:50], 1):
-            summary += f"[{sub['start']:.2f}giây -> {sub['end']:.2f}giây] {sub['text']}\n"
-        if len(subtitles) > 50:
-            summary += f"\n... và {len(subtitles) - 50} đoạn khác."
+        # Build final final text
+        final_summary = f"Đã trích xuất thành công {len(current_subs)} đoạn phụ đề.\nLưu tại: {output_path}\n\n--- Danh sách phụ đề ---\n"
+        for idx, sub in enumerate(current_subs, 1):
+            final_summary += f"[{format_time(sub['start'])} -> {format_time(sub['end'])}] {sub['text']}\n"
             
-        return output_path, summary
+        yield gr.update(visible=True, value=output_path), final_summary, make_progress_html(1.0, elapsed, 0.0)
         
     except Exception as e:
         import traceback
         exc = traceback.format_exc()
-        return None, f"Đã xảy ra lỗi:\n{e}\n\nChi tiết:\n{exc}"
+        yield gr.update(visible=False), f"Đã xảy ra lỗi:\n{e}\n\nChi tiết:\n{exc}", make_progress_html(0.0, 0.0, 0.0)
 
 def build_gui():
     with gr.Blocks(title="SubLifter - Trích xuất phụ đề cứng") as demo:
@@ -161,27 +181,50 @@ def build_gui():
                 gr.Markdown("### 🖼️ Xem trước khung hình")
                 gr.Markdown("Khung check phụ đề được cố định: **85% chiều ngang (ở giữa)** và **40% chia đều ở 2 đầu chiều dọc** (Top 20% & Bottom 20%).")
                 preview_image = gr.Image(label="Vùng quét giới hạn (Khung đỏ)", interactive=False)
-                cropped_preview = gr.Image(label="Khung hình phụ đề được cắt", interactive=False)
                 
                 gr.Markdown("### 📄 Kết quả")
-                output_file = gr.File(label="Tải tệp phụ đề về máy")
-                output_text = gr.Textbox(label="Xem trước phụ đề / Nhật ký xử lý", lines=15, max_lines=25)
+                output_file = gr.File(label="Tải tệp phụ đề về máy", visible=False, height=70)
+                
+                # Box 2: Phụ đề đã trích xuất & tự động sửa (height expanded)
+                preview_subs_box = gr.Textbox(
+                    label="Phụ đề đã trích xuất & tự động sửa", 
+                    value="", 
+                    lines=17, 
+                    max_lines=28,
+                    interactive=False
+                )
+                
+                # Box 1: Tiến độ công việc (height shrunken to fit progress info)
+                progress_html = gr.HTML(
+                    value="""
+                    <div style='border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9; font-family: sans-serif;'>
+                        <p style='margin: 0; font-size: 14px; font-weight: bold; color: #555;'>Tiến độ công việc</p>
+                        <div style='background-color: #eee; border-radius: 4px; height: 12px; margin: 8px 0; overflow: hidden;'>
+                            <div style='background-color: #4b6cb7; width: 0%; height: 100%;'></div>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; font-size: 12px; color: #666;'>
+                            <span>Thời gian đã hoạt động: 00:00:00</span>
+                            <span>Thời gian còn lại: 00:00:00</span>
+                        </div>
+                    </div>
+                    """,
+                    label="Tiến độ công việc"
+                )
                 
         # Update preview when video is uploaded
-        video_input.change(get_preview, inputs=[video_input], outputs=[preview_image, cropped_preview])
+        video_input.change(get_preview, inputs=[video_input], outputs=[preview_image])
         
         # Click Run
         btn_run.click(
             extract_subtitles,
             inputs=[video_input, lang_preset, out_format, use_spellcheck],
-            outputs=[output_file, output_text]
+            outputs=[output_file, preview_subs_box, progress_html]
         )
         
     return demo
 
 def main():
     demo = build_gui()
-    # Launch locally
     demo.launch(inbrowser=True, share=False)
 
 if __name__ == "__main__":

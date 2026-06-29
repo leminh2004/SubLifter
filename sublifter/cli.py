@@ -71,9 +71,12 @@ def main():
 
     pbar = tqdm(total=100, desc="Đang trích xuất phụ đề", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {postfix}]")
 
-    def progress_callback(progress, status_text):
+    def progress_callback(progress, elapsed, eta, current_subs):
         percent = int(progress * 100)
         pbar.n = percent
+        mins_el, secs_el = int(elapsed // 60), int(elapsed % 60)
+        mins_eta, secs_eta = int(eta // 60), int(eta % 60)
+        status_text = f"Đã chạy: {mins_el:02d}:{secs_el:02d} | Còn lại: {mins_eta:02d}:{secs_eta:02d}"
         pbar.set_postfix_str(status_text)
         pbar.refresh()
 
