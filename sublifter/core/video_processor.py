@@ -8,7 +8,7 @@ def get_text_similarity(str1: str, str2: str) -> float:
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
 
 class VideoProcessor:
-    def __init__(self, ocr_engine, sample_rate=2.0, ymin=0.8, ymax=1.0, xmin=0.0, xmax=1.0, diff_threshold=2.0, preprocess_mode='none'):
+    def __init__(self, ocr_engine, sample_rate=2.0, ymin=0.8, ymax=1.0, xmin=0.0, xmax=1.0, diff_threshold=2.0, preprocess_mode='none', double_zone=False, width_ths=0.5):
         """
         Initialize Video Processor.
         :param ocr_engine: An instance of OCREngine
@@ -19,6 +19,8 @@ class VideoProcessor:
         :param xmax: Right boundary percentage (0.0 to 1.0)
         :param diff_threshold: Pixel difference threshold to trigger OCR. Set to 0 to run OCR on all sampled frames.
         :param preprocess_mode: Preprocessing mode ('none', 'binarize', 'adaptive', 'color_mask')
+        :param double_zone: If True, crops and stacks both top 20% and bottom 20%
+        :param width_ths: Width merge threshold for EasyOCR (default: 0.5)
         """
         self.ocr_engine = ocr_engine
         self.sample_rate = sample_rate
@@ -28,6 +30,8 @@ class VideoProcessor:
         self.xmax = xmax
         self.diff_threshold = diff_threshold
         self.preprocess_mode = preprocess_mode
+        self.double_zone = double_zone
+        self.width_ths = width_ths
 
     def process_video(self, video_path: str, progress_callback=None):
         """
@@ -75,7 +79,17 @@ class VideoProcessor:
             timestamp = frame_idx / fps
             
             # Crop the subtitle region
-            cropped = frame[y_start:y_end, x_start:x_end]
+            if self.double_zone:
+                y_top_end = int(height * 0.2)
+                y_bottom_start = int(height * 0.8)
+                top_crop = frame[0:y_top_end, x_start:x_end]
+                bottom_crop = frame[y_bottom_start:height, x_start:x_end]
+                if top_crop.size > 0 and bottom_crop.size > 0:
+                    cropped = np.vstack([top_crop, bottom_crop])
+                else:
+                    cropped = frame[y_start:y_end, x_start:x_end]
+            else:
+                cropped = frame[y_start:y_end, x_start:x_end]
             if cropped.size == 0:
                 frame_idx += step
                 continue
@@ -98,7 +112,7 @@ class VideoProcessor:
             
             # Extract text
             if should_run_ocr:
-                text = self.ocr_engine.extract_text(cropped, preprocess_mode=self.preprocess_mode)
+                text = self.ocr_engine.extract_text(cropped, preprocess_mode=self.preprocess_mode, width_ths=self.width_ths)
             else:
                 # Re-use previous text if difference is negligible
                 text = active_sub['text'] if active_sub else ""

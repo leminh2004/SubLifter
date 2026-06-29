@@ -16,8 +16,10 @@ class OCREngine:
         """Lazy load EasyOCR reader to avoid importing cost on startup"""
         if self.reader is None:
             import easyocr
-            # easyocr.Reader will download the model files if they are not already present
-            self.reader = easyocr.Reader(self.languages)
+            import torch
+            use_gpu = torch.cuda.is_available()
+            print(f"[OCREngine] Khởi tạo EasyOCR. Trạng thái GPU: {use_gpu}")
+            self.reader = easyocr.Reader(self.languages, gpu=use_gpu)
 
     def preprocess_image(self, img, mode='none'):
         """
@@ -71,11 +73,12 @@ class OCREngine:
             
         return gray
 
-    def extract_text(self, img, preprocess_mode='none') -> str:
+    def extract_text(self, img, preprocess_mode='none', width_ths=0.5) -> str:
         """
         Run OCR on the image and return the combined text.
         :param img: numpy array (BGR image)
         :param preprocess_mode: Preprocessing mode ('none', 'binarize', 'adaptive', 'color_mask')
+        :param width_ths: Width merge threshold for word grouping (default: 0.5)
         """
         self._init_reader()
         
@@ -84,7 +87,7 @@ class OCREngine:
         
         # Run EasyOCR
         # readtext accepts numpy arrays directly (both grayscale and BGR/RGB)
-        results = self.reader.readtext(processed)
+        results = self.reader.readtext(processed, width_ths=width_ths)
         
         if not results:
             return ""

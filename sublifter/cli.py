@@ -12,14 +12,15 @@ def main():
     parser.add_argument("-o", "--output", help="Path to output subtitle file (default: same folder as video)")
     parser.add_argument("-f", "--format", choices=["srt", "ass"], default="srt", help="Output subtitle format (default: srt)")
     parser.add_argument("-l", "--languages", default="vi,en", help="Comma-separated language codes for OCR, e.g. vi,en (default: vi,en)")
-    parser.add_argument("--sample-rate", type=float, default=2.0, help="Frames to process per second (default: 2.0)")
+    parser.add_argument("--sample-rate", type=float, default=1.5, help="Frames to process per second (default: 1.5)")
     parser.add_argument("--ymin", type=float, default=0.8, help="Top crop boundary percentage [0.0 to 1.0] (default: 0.8)")
     parser.add_argument("--ymax", type=float, default=1.0, help="Bottom crop boundary percentage [0.0 to 1.0] (default: 1.0)")
     parser.add_argument("--xmin", type=float, default=0.0, help="Left crop boundary percentage [0.0 to 1.0] (default: 0.0)")
     parser.add_argument("--xmax", type=float, default=1.0, help="Right crop boundary percentage [0.0 to 1.0] (default: 1.0)")
     parser.add_argument("--diff-threshold", type=float, default=2.0, help="Pixel difference threshold to trigger OCR. Set to 0 to run OCR on all sampled frames (default: 2.0)")
     parser.add_argument("-c", "--conf", type=float, default=0.35, help="OCR confidence threshold [0.0 to 1.0] (default: 0.35)")
-    parser.add_argument("--preprocess", choices=["none", "binarize", "adaptive", "color_mask"], default="none", help="Preprocessing method for image cleaning (default: none)")
+    parser.add_argument("--preprocess", choices=["none", "binarize", "adaptive", "color_mask"], default="adaptive", help="Preprocessing method for image cleaning (default: adaptive)")
+    parser.add_argument("--width-ths", type=float, default=0.3, help="Width merge threshold for word grouping (default: 0.3)")
 
     args = parser.parse_args()
 
@@ -45,6 +46,7 @@ def main():
     print(f"Tốc độ quét    : {args.sample_rate} Hz (mỗi {1/args.sample_rate:.2f} giây)")
     print(f"Ngưỡng lệch    : {args.diff_threshold}")
     print(f"Tiền xử lý     : {args.preprocess}")
+    print(f"Ngưỡng gộp từ  : {args.width_ths}")
     print("=" * 60)
     
     print("Đang khởi tạo OCREngine (EasyOCR)... (Quá trình này có thể mất một chút thời gian để tải mô hình)")
@@ -58,7 +60,8 @@ def main():
         xmin=args.xmin,
         xmax=args.xmax,
         diff_threshold=args.diff_threshold,
-        preprocess_mode=args.preprocess
+        preprocess_mode=args.preprocess,
+        width_ths=args.width_ths
     )
 
     pbar = tqdm(total=100, desc="Đang trích xuất phụ đề", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {postfix}]")
