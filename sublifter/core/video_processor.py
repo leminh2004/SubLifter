@@ -1,14 +1,16 @@
 import cv2
 import numpy as np
 import difflib
+import time
 from .sub_writer import write_srt, write_ass
+from .spell_checker import SpellCheckerPipeline
 
 def get_text_similarity(str1: str, str2: str) -> float:
     """Calculate similarity ratio between two strings."""
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
 
 class VideoProcessor:
-    def __init__(self, ocr_engine, sample_rate=2.0, ymin=0.8, ymax=1.0, xmin=0.0, xmax=1.0, diff_threshold=2.0, preprocess_mode='none', double_zone=False, width_ths=0.5):
+    def __init__(self, ocr_engine, sample_rate=2.0, ymin=0.8, ymax=1.0, xmin=0.0, xmax=1.0, diff_threshold=2.0, preprocess_mode='none', double_zone=False, width_ths=0.5, use_spellcheck=True, lang_preset=""):
         """
         Initialize Video Processor.
         :param ocr_engine: An instance of OCREngine
@@ -21,6 +23,8 @@ class VideoProcessor:
         :param preprocess_mode: Preprocessing mode ('none', 'binarize', 'adaptive', 'color_mask')
         :param double_zone: If True, crops and stacks both top 20% and bottom 20%
         :param width_ths: Width merge threshold for EasyOCR (default: 0.5)
+        :param use_spellcheck: Enable/disable real-time spell check
+        :param lang_preset: Language preset name
         """
         self.ocr_engine = ocr_engine
         self.sample_rate = sample_rate
@@ -32,6 +36,9 @@ class VideoProcessor:
         self.preprocess_mode = preprocess_mode
         self.double_zone = double_zone
         self.width_ths = width_ths
+        self.use_spellcheck = use_spellcheck
+        self.lang_preset = lang_preset
+        self.spell_checker = SpellCheckerPipeline() if use_spellcheck else None
 
     def process_video(self, video_path: str, progress_callback=None):
         """
@@ -52,6 +59,8 @@ class VideoProcessor:
 
         duration = total_frames / fps
         step = max(1, int(fps / self.sample_rate))
+        self.fps = fps
+        self.step = step
         
         # Crop coordinates in pixels
         y_start = int(height * self.ymin)
@@ -67,8 +76,10 @@ class VideoProcessor:
         active_sub = None
         
         prev_norm_frame = None
+        prev_text = ""
         
         frame_idx = 0
+        start_time = time.time()
         
         while frame_idx < total_frames:
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -113,9 +124,13 @@ class VideoProcessor:
             # Extract text
             if should_run_ocr:
                 text = self.ocr_engine.extract_text(cropped, preprocess_mode=self.preprocess_mode, width_ths=self.width_ths)
+                if self.use_spellcheck and text and self.spell_checker:
+                    text = self.spell_checker.correct(text, self.lang_preset)
             else:
                 # Re-use previous text if difference is negligible
-                text = active_sub['text'] if active_sub else ""
+                text = prev_text
+            
+            prev_text = text
 
             # Manage subtitle states
             if text:
@@ -148,7 +163,15 @@ class VideoProcessor:
             # Progress reporting
             progress = frame_idx / total_frames
             if progress_callback:
-                progress_callback(progress, f"Đang xử lý: {timestamp:.1f}giây / {duration:.1f}giây")
+                elapsed = time.time() - start_time
+                if progress > 0:
+                    eta = elapsed / progress - elapsed
+                    mins = int(eta // 60)
+                    secs = int(eta % 60)
+                    eta_str = f"{mins:02d}:{secs:02d}"
+                else:
+                    eta_str = "--:--"
+                progress_callback(progress, f"Đang xử lý: {timestamp:.1f}giây / {duration:.1f}giây (Còn lại: {eta_str})")
             
             frame_idx += step
 
@@ -170,15 +193,20 @@ class VideoProcessor:
         merged = []
         current = subtitles[0]
         
+        fps = getattr(self, 'fps', 30.0)
+        step = getattr(self, 'step', 20)
+        one_frame_duration = step / fps
+        
         for next_sub in subtitles[1:]:
-            # If gap between subtitles is less than 0.5s and texts are similar, merge them
             gap = next_sub['start'] - current['end']
-            similarity = get_text_similarity(current['text'], next_sub['text'])
+            txt1 = current['text'].strip()
+            txt2 = next_sub['text'].strip()
+            similarity = get_text_similarity(txt1, txt2)
             
-            if gap < 0.5 and similarity > 0.8:
-                # Keep the longer text or current text, and extend the end time
+            # Revert to standard similar text merging (no substring matching for typewriter)
+            if gap < 0.8 and similarity > 0.85:
                 current['end'] = next_sub['end']
-                if len(next_sub['text']) > len(current['text']):
+                if len(txt2) > len(txt1):
                     current['text'] = next_sub['text']
             else:
                 merged.append(current)
@@ -186,13 +214,21 @@ class VideoProcessor:
                 
         merged.append(current)
         
-        # Filter out subtitles that are extremely short (e.g. < 0.2s) or have empty text
+        # Filter out subtitles that are extremely short or have empty/noise text
         final_subs = []
         for sub in merged:
             duration = sub['end'] - sub['start']
             text = sub['text'].strip()
-            # Remove very short duration blocks that might be transient noise
-            if duration >= 0.3 and len(text) > 0:
+            if not text:
+                continue
+                
+            # Filter out single-frame transient noise (e.g. single letters/symbols or numbers)
+            clean_txt = "".join([c for c in text if c.isalnum()])
+            if duration <= one_frame_duration + 0.15:
+                if len(clean_txt) <= 2 or clean_txt.isdigit():
+                    continue
+                    
+            if duration >= 0.4:
                 final_subs.append(sub)
                 
         return final_subs

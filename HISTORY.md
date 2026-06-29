@@ -5,12 +5,34 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 3
+- **Tổng số phiên bản**: 4
 - **Thời gian dự án**: Tháng 06/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.1.3. Tối giản hóa giao diện, tích hợp bộ kiểm tra chính tả & cách từ (Spell Checker) bảo toàn Romaji và ETA
+- **Ngày**: 29/06/2026
+- **Chi tiết thay đổi**:
+  - **Tối giản hóa giao diện người dùng & Cố định vùng quét tối ưu**:
+    * Ẩn/xóa bỏ hoàn toàn khu vực cấu hình nâng cao (Advanced Settings), các thanh trượt và menu chọn vùng quét thủ công.
+    * Cố định hoàn toàn khung check sub ngầm: **85% chiều ngang ở chính giữa** (xmin=0.075, xmax=0.925) và **40% chia đều ở 2 đầu chiều dọc** (Top 20% và Bottom 20% xếp chồng đứng).
+    * Thiết lập tự động các thông số tối ưu ngầm (tốc độ quét `1.5`, độ tin cậy `0.35`, độ lệch `2.0`, `width_ths = 0.5`, chế độ lọc `none`).
+    * Thêm checkbox bật/tắt bộ sửa lỗi chính tả trực quan.
+  - **Tích hợp bộ tự động sửa lỗi chính tả & cách từ (Spell Checker & Auto-Spacing)**:
+    * Sử dụng `pyspellchecker` và `wordsegment` để tự động phát hiện, tách các từ bị dính nhau (ví dụ: `Icareofus` -> `I care of us`) và sửa các từ tiếng Anh viết sai chính tả (ví dụ: `talec` -> `take`).
+  - **Bảo toàn từ phiên âm Romaji tiếng Nhật**:
+    * Thiết lập bộ lọc bảo toàn chữ Romaji thông minh thông qua quy luật cấu trúc âm tiết tiếng Nhật (Consonant-Vowel) và whitelist từ vựng Anime phổ biến (`Aqours`, `LoveLive`, `Chika`, `Saito Shuka`, `watashi`, `yume`,...).
+    * Đảm bảo các từ Romaji này không bao giờ bị bộ sửa lỗi tiếng Anh nhận nhầm và sửa thành từ khác.
+  - **Khắc phục lỗi trích xuất phụ đề tĩnh & Lọc nhiễu**:
+    * Sửa lỗi mất câu khi video chuyển cảnh tĩnh bằng cơ chế kế thừa văn bản của khung hình trước (`prev_text`).
+    * Điều chỉnh thuật toán gộp chỉ áp dụng cho phụ đề tĩnh có độ tương đồng cao (gap < 0.8s, similarity > 85%).
+    * Lọc bỏ hoàn toàn các ký tự rác tồn tại trong duy nhất 1 khung hình (`M`, `27`, `t`, `0`).
+  - **Tích hợp bộ ước tính thời gian hoàn thành (ETA)**:
+    * Tự động đo lường thời gian xử lý thực tế và tỷ lệ tiến trình để tính toán thời gian còn lại (định dạng `MM:SS`) và cập nhật liên tục lên thanh trạng thái xử lý của giao diện Web giúp người dùng dễ dàng theo dõi.
+
+---
 
 ### 0.1.2. Khắc phục lỗi dính liền chữ (width_ths), tối ưu cấu hình mặc định và giám sát GPU
 - **Ngày**: 29/06/2026
@@ -23,7 +45,7 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
     * Đặt mặc định bộ lọc tiền xử lý khử nhiễu về `none` (Giữ nguyên) để tránh tạo ra nhiễu hạt gây nhận diện sai từ nền video phức tạp.
     * Đặt mặc định ngưỡng gộp từ ngang `width_ths` về lại `0.5` để đảm bảo nhận diện từ tiếng Anh toàn vẹn, tránh bị tách nhỏ từ.
   - **Nâng cấp giám sát hoạt động của Card đồ họa (GPU)**:
-    * Tự động kiểm tra tính khả dụng của CUDA (`torch.cuda.is_available()`) khi khởi chạy OCR và truyền tường minh cờ `gpu=use_gpu` vào EasyOCR, đồng thời in thông tin thông báo xác thực GPU đang chạy lên terminal.
+    * Tự động kiểm tra tính khả dụng của CUDA (`torch.cuda.is_available()`) khi khởi chạy OCR và truyền tường minh cờ `gpu=use_gpu` vào EasyOCR, đồng thời in thông báo xác thực GPU đang chạy lên terminal.
 
 ---
 

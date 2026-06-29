@@ -21,6 +21,7 @@ def main():
     parser.add_argument("-c", "--conf", type=float, default=0.35, help="OCR confidence threshold [0.0 to 1.0] (default: 0.35)")
     parser.add_argument("--preprocess", choices=["none", "binarize", "adaptive", "color_mask"], default="none", help="Preprocessing method for image cleaning (default: none)")
     parser.add_argument("--width-ths", type=float, default=0.5, help="Width merge threshold for word grouping (default: 0.5)")
+    parser.add_argument("--no-spellcheck", action="store_true", help="Vô hiệu hóa tự động sửa lỗi chính tả và cách từ (Spell Checker)")
 
     args = parser.parse_args()
 
@@ -36,12 +37,14 @@ def main():
 
     # Parse languages
     langs = [lang.strip() for lang in args.languages.split(",")]
+    use_spellcheck = not args.no_spellcheck
     
     print("=" * 60)
     print("Bắt đầu trích xuất phụ đề cứng SubLifter")
     print(f"Video đầu vào  : {args.input}")
     print(f"Tệp đầu ra     : {output_path}")
     print(f"Ngôn ngữ       : {langs}")
+    print(f"Sửa chính tả   : {'Bật' if use_spellcheck else 'Tắt'}")
     print(f"Vùng cắt (Crop): Y: [{args.ymin:.2f} - {args.ymax:.2f}], X: [{args.xmin:.2f} - {args.xmax:.2f}]")
     print(f"Tốc độ quét    : {args.sample_rate} Hz (mỗi {1/args.sample_rate:.2f} giây)")
     print(f"Ngưỡng lệch    : {args.diff_threshold}")
@@ -61,7 +64,9 @@ def main():
         xmax=args.xmax,
         diff_threshold=args.diff_threshold,
         preprocess_mode=args.preprocess,
-        width_ths=args.width_ths
+        width_ths=args.width_ths,
+        use_spellcheck=use_spellcheck,
+        lang_preset=args.languages
     )
 
     pbar = tqdm(total=100, desc="Đang trích xuất phụ đề", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {postfix}]")

@@ -27,6 +27,11 @@ class OCREngine:
         :param img: numpy array (BGR image)
         :param mode: Preprocessing mode ('none', 'binarize', 'adaptive', 'color_mask')
         """
+        # Upscale the cropped image by 2x to make characters larger and improve word/character spacing
+        h, w = img.shape[:2]
+        if h > 0 and w > 0:
+            img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+            
         if mode == 'none':
             return img
             
@@ -87,7 +92,7 @@ class OCREngine:
         
         # Run EasyOCR
         # readtext accepts numpy arrays directly (both grayscale and BGR/RGB)
-        results = self.reader.readtext(processed, width_ths=width_ths)
+        results = self.reader.readtext(processed, width_ths=width_ths, link_threshold=0.55)
         
         if not results:
             return ""

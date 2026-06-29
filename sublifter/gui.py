@@ -2,12 +2,13 @@ import gradio as gr
 import cv2
 import os
 import sys
+import numpy as np
 from sublifter.core.ocr_engine import OCREngine
 from sublifter.core.video_processor import VideoProcessor
 from sublifter.core.sub_writer import write_srt, write_ass
 
-def get_preview(video_path, ymin, ymax, xmin, xmax, scan_preset="Biên dưới (Mặc định - 20% dưới)"):
-    """Generate a full frame with crop boundary overlay and a cropped preview."""
+def get_preview(video_path):
+    """Generate a full frame with crop boundary overlay (85% centered horizontal, top+bottom 20% vertical)."""
     if not video_path or not os.path.exists(video_path):
         return None, None
         
@@ -20,36 +21,28 @@ def get_preview(video_path, ymin, ymax, xmin, xmax, scan_preset="Biên dưới (
         
     h, w, _ = frame.shape
     
-    # Convert percentages to pixel values
-    y_start = int(h * ymin)
-    y_end = int(h * ymax)
-    x_start = int(w * xmin)
-    x_end = int(w * xmax)
-    
-    # Clip values just in case
-    y_start, y_end = max(0, y_start), min(h, y_end)
-    x_start, x_end = max(0, x_start), min(w, x_end)
+    # Fixed Coordinates:
+    # Horizontal: 85% width centered -> xmin=0.075, xmax=0.925
+    # Vertical: Top 20% (0.0 to 0.2) & Bottom 20% (0.8 to 1.0)
+    x_start = int(w * 0.075)
+    x_end = int(w * 0.925)
+    y_top_end = int(h * 0.2)
+    y_bottom_start = int(h * 0.8)
     
     overlay_frame = frame.copy()
     
-    # Get cropped region & Draw boundary box
-    if scan_preset == "Cả trên và dưới (20% mỗi bên)":
-        y_top_end = int(h * 0.2)
-        y_bottom_start = int(h * 0.8)
-        
-        cv2.rectangle(overlay_frame, (x_start, 0), (x_end, y_top_end), (0, 0, 255), 3)
-        cv2.rectangle(overlay_frame, (x_start, y_bottom_start), (x_end, h), (0, 0, 255), 3)
-        
-        top_crop = frame[0:y_top_end, x_start:x_end]
-        bottom_crop = frame[y_bottom_start:h, x_start:x_end]
-        if top_crop.size > 0 and bottom_crop.size > 0:
-            import numpy as np
-            cropped = np.vstack([top_crop, bottom_crop])
-        else:
-            cropped = frame[y_start:y_end, x_start:x_end]
+    # Draw two red boxes for visual crop preview
+    cv2.rectangle(overlay_frame, (x_start, 0), (x_end, y_top_end), (0, 0, 255), 3)
+    cv2.rectangle(overlay_frame, (x_start, y_bottom_start), (x_end, h), (0, 0, 255), 3)
+    
+    # Crop and stack the two regions
+    top_crop = frame[0:y_top_end, x_start:x_end]
+    bottom_crop = frame[y_bottom_start:h, x_start:x_end]
+    
+    if top_crop.size > 0 and bottom_crop.size > 0:
+        cropped = np.vstack([top_crop, bottom_crop])
     else:
-        cv2.rectangle(overlay_frame, (x_start, y_start), (x_end, y_end), (0, 0, 255), 3)
-        cropped = frame[y_start:y_end, x_start:x_end]
+        cropped = top_crop if top_crop.size > 0 else bottom_crop
         
     # Convert to RGB for Gradio
     overlay_frame = cv2.cvtColor(overlay_frame, cv2.COLOR_BGR2RGB)
@@ -61,7 +54,7 @@ def get_preview(video_path, ymin, ymax, xmin, xmax, scan_preset="Biên dưới (
         
     return overlay_frame, cropped_rgb
 
-def extract_subtitles(video_path, scan_preset, lang_preset, sample_rate, ymin, ymax, xmin, xmax, diff_threshold, conf_threshold, out_format, preprocess_mode, width_ths, progress=gr.Progress()):
+def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck, progress=gr.Progress()):
     if not video_path or not os.path.exists(video_path):
         return None, "Lỗi: Vui lòng tải lên hoặc chọn một tệp video hợp lệ."
         
@@ -79,21 +72,24 @@ def extract_subtitles(video_path, scan_preset, lang_preset, sample_rate, ymin, y
         
     try:
         progress(0, desc="Đang khởi tạo công cụ OCR...")
-        ocr = OCREngine(languages=langs, confidence_threshold=conf_threshold)
+        ocr = OCREngine(languages=langs, confidence_threshold=0.35)
         
-        double_zone = (scan_preset == "Cả trên và dưới (20% mỗi bên)")
-        
+        # Fixed optimal settings under the hood:
+        # - Horizontal: 85% width centered (xmin=0.075, xmax=0.925)
+        # - Vertical: Top 20% + Bottom 20% (double_zone=True, ymin=0.8, ymax=1.0)
         processor = VideoProcessor(
             ocr_engine=ocr,
-            sample_rate=sample_rate,
-            ymin=ymin,
-            ymax=ymax,
-            xmin=xmin,
-            xmax=xmax,
-            diff_threshold=diff_threshold,
-            preprocess_mode=preprocess_mode,
-            double_zone=double_zone,
-            width_ths=width_ths
+            sample_rate=1.5,
+            ymin=0.8,
+            ymax=1.0,
+            xmin=0.075,
+            xmax=0.925,
+            diff_threshold=2.0,
+            preprocess_mode='none',
+            double_zone=True,
+            width_ths=0.5,
+            use_spellcheck=use_spellcheck,
+            lang_preset=lang_preset
         )
         
         def progress_callback(prog, status_text):
@@ -125,18 +121,6 @@ def extract_subtitles(video_path, scan_preset, lang_preset, sample_rate, ymin, y
         exc = traceback.format_exc()
         return None, f"Đã xảy ra lỗi:\n{e}\n\nChi tiết:\n{exc}"
 
-def handle_preset(preset, ymin, ymax, xmin, xmax):
-    if preset == "Biên dưới (Mặc định - 20% dưới)":
-        return 0.80, 1.00, 0.00, 1.00, gr.update(visible=False)
-    elif preset == "Biên trên (20% trên)":
-        return 0.00, 0.20, 0.00, 1.00, gr.update(visible=False)
-    elif preset == "Cả trên và dưới (20% mỗi bên)":
-        return 0.80, 1.00, 0.00, 1.00, gr.update(visible=False)
-    elif preset == "Toàn bộ màn hình (100%)":
-        return 0.00, 1.00, 0.00, 1.00, gr.update(visible=False)
-    else: # Tự chọn (Chỉnh tay)
-        return ymin, ymax, xmin, xmax, gr.update(visible=True)
-
 def build_gui():
     with gr.Blocks(title="SubLifter - Trích xuất phụ đề cứng") as demo:
         gr.Markdown(
@@ -149,26 +133,6 @@ def build_gui():
         with gr.Row():
             with gr.Column(scale=1):
                 video_input = gr.Video(label="Tải video lên", sources=["upload"])
-                
-                scan_preset = gr.Dropdown(
-                    choices=[
-                        "Biên dưới (Mặc định - 20% dưới)", 
-                        "Biên trên (20% trên)", 
-                        "Cả trên và dưới (20% mỗi bên)",
-                        "Toàn bộ màn hình (100%)", 
-                        "Tự chọn (Chỉnh tay)"
-                    ],
-                    value="Biên dưới (Mặc định - 20% dưới)",
-                    label="Vùng quét phụ đề"
-                )
-                
-                with gr.Group(visible=False) as manual_crop_group:
-                    gr.Markdown("### 🔍 Cấu hình vùng chứa phụ đề (Tỷ lệ %)")
-                    ymin = gr.Slider(0.0, 1.0, value=0.80, step=0.01, label="Y-Min (Biên trên)")
-                    ymax = gr.Slider(0.0, 1.0, value=1.00, step=0.01, label="Y-Max (Biên dưới)")
-                    xmin = gr.Slider(0.0, 1.0, value=0.00, step=0.01, label="X-Min (Biên trái)")
-                    xmax = gr.Slider(0.0, 1.0, value=1.00, step=0.01, label="X-Max (Biên phải)")
-                    
                 out_format = gr.Radio(["srt", "ass"], value="srt", label="Định dạng phụ đề đầu ra")
                 
                 lang_preset = gr.Dropdown(
@@ -185,22 +149,17 @@ def build_gui():
                     info="Hỗ trợ ghép thêm tiếng Anh làm ngôn ngữ phụ để tối ưu chính tả."
                 )
                 
-                with gr.Accordion("⚙️ Cấu hình nâng cao", open=False):
-                    sample_rate = gr.Slider(0.5, 10.0, value=1.5, step=0.5, label="Tốc độ quét (Khung hình/giây)")
-                    diff_thresh = gr.Slider(0.0, 10.0, value=2.0, step=0.5, label="Ngưỡng lệch khung hình (0 để quét toàn bộ)")
-                    conf_thresh = gr.Slider(0.1, 0.9, value=0.35, step=0.05, label="Ngưỡng độ tin cậy OCR")
-                    width_ths = gr.Slider(0.1, 1.0, value=0.5, step=0.05, label="Ngưỡng gộp chữ ngang (Width Threshold)", info="Giá trị mặc định là 0.5. Hạ xuống 0.2 - 0.3 nếu từ bị dính nhau. Tăng lên nếu từ bị rời rạc.")
-                    preprocess_mode = gr.Dropdown(
-                        choices=["none", "binarize", "adaptive", "color_mask"], 
-                        value="none", 
-                        label="Phương pháp tiền xử lý ảnh (Khử nhiễu nền)",
-                        info="none: Giữ nguyên (Mặc định tối ưu cho hầu hết video) | binarize: Nhị phân hóa | adaptive: Tách viền (Chỉ dùng khi chữ có viền đen dày và nền cực sạch) | color_mask: Chỉ lấy màu trắng/vàng"
-                    )
+                use_spellcheck = gr.Checkbox(
+                    value=True,
+                    label="Tự động sửa lỗi chính tả & cách từ (Spell Checker)",
+                    info="Tự động sửa lỗi dính chữ tiếng Anh, sửa lỗi chính tả và bảo toàn từ Romaji tiếng Nhật."
+                )
                     
                 btn_run = gr.Button("🚀 Bắt đầu trích xuất phụ đề", variant="primary")
                 
             with gr.Column(scale=1):
                 gr.Markdown("### 🖼️ Xem trước khung hình")
+                gr.Markdown("Khung check phụ đề được cố định: **85% chiều ngang (ở giữa)** và **40% chia đều ở 2 đầu chiều dọc** (Top 20% & Bottom 20%).")
                 preview_image = gr.Image(label="Vùng quét giới hạn (Khung đỏ)", interactive=False)
                 cropped_preview = gr.Image(label="Khung hình phụ đề được cắt", interactive=False)
                 
@@ -208,30 +167,13 @@ def build_gui():
                 output_file = gr.File(label="Tải tệp phụ đề về máy")
                 output_text = gr.Textbox(label="Xem trước phụ đề / Nhật ký xử lý", lines=15, max_lines=25)
                 
-        # Interactive Preview Handlers
-        preview_inputs = [video_input, ymin, ymax, xmin, xmax, scan_preset]
-        preview_outputs = [preview_image, cropped_preview]
-        
-        # Update preview when video is uploaded or sliders change
-        video_input.change(get_preview, inputs=preview_inputs, outputs=preview_outputs)
-        ymin.change(get_preview, inputs=preview_inputs, outputs=preview_outputs)
-        ymax.change(get_preview, inputs=preview_inputs, outputs=preview_outputs)
-        xmin.change(get_preview, inputs=preview_inputs, outputs=preview_outputs)
-        xmax.change(get_preview, inputs=preview_inputs, outputs=preview_outputs)
-        
-        # Change preset handler
-        scan_preset.change(
-            handle_preset,
-            inputs=[scan_preset, ymin, ymax, xmin, xmax],
-            outputs=[ymin, ymax, xmin, xmax, manual_crop_group]
-        )
-        # Also trigger preview update when preset dropdown changes
-        scan_preset.change(get_preview, inputs=preview_inputs, outputs=preview_outputs)
+        # Update preview when video is uploaded
+        video_input.change(get_preview, inputs=[video_input], outputs=[preview_image, cropped_preview])
         
         # Click Run
         btn_run.click(
             extract_subtitles,
-            inputs=[video_input, scan_preset, lang_preset, sample_rate, ymin, ymax, xmin, xmax, diff_thresh, conf_thresh, out_format, preprocess_mode, width_ths],
+            inputs=[video_input, lang_preset, out_format, use_spellcheck],
             outputs=[output_file, output_text]
         )
         
