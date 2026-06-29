@@ -27,10 +27,12 @@ class OCREngine:
         :param img: numpy array (BGR image)
         :param mode: Preprocessing mode ('none', 'binarize', 'adaptive', 'color_mask')
         """
-        # Upscale the cropped image by 2x to make characters larger and improve word/character spacing
+        # Adaptive upscaling: only upscale if the image height is small (e.g. < 150 pixels)
+        # This prevents large 1080p/4K crops from becoming massive, which slows down GPU inference.
         h, w = img.shape[:2]
-        if h > 0 and w > 0:
-            img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+        if h > 0 and w > 0 and h < 150:
+            scale = 150.0 / h
+            img = cv2.resize(img, (int(w * scale), 150), interpolation=cv2.INTER_CUBIC)
             
         if mode == 'none':
             return img
