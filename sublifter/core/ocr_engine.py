@@ -2,24 +2,57 @@ import cv2
 import numpy as np
 
 class OCREngine:
-    def __init__(self, languages=['vi', 'en'], confidence_threshold=0.35):
+    def __init__(self, languages=['vi', 'en'], confidence_threshold=0.35, engine_type='paddle'):
         """
         Initialize the OCR Engine.
         :param languages: List of language codes for EasyOCR (e.g., ['vi', 'en'])
         :param confidence_threshold: Ignore text detections with confidence lower than this
+        :param engine_type: OCR engine type ('paddle' or 'easyocr')
         """
         self.languages = languages
         self.confidence_threshold = confidence_threshold
+        self.engine_type = engine_type
         self.reader = None
+        self.paddle_ocr = None
 
     def _init_reader(self):
-        """Lazy load EasyOCR reader to avoid importing cost on startup"""
-        if self.reader is None:
-            import easyocr
-            import torch
-            use_gpu = torch.cuda.is_available()
-            print(f"[OCREngine] Khởi tạo EasyOCR. Trạng thái GPU: {use_gpu}")
-            self.reader = easyocr.Reader(self.languages, gpu=use_gpu)
+        """Lazy load OCR readers to avoid importing cost on startup"""
+        if self.engine_type == 'paddle':
+            if self.paddle_ocr is None:
+                try:
+                    import paddle
+                    from paddleocr import PaddleOCR
+                    import torch
+                    
+                    # Map language codes to paddleocr supported lang codes
+                    # paddleocr defaults to 'vi' for Vietnamese, 'japan' for Japanese, 'ch' for Chinese, 'chinese_cht' for Traditional Chinese, 'korean' for Korean, 'en' for English
+                    lang_code = 'vi'
+                    if 'ja' in self.languages:
+                        lang_code = 'japan'
+                    elif 'ch_sim' in self.languages:
+                        lang_code = 'ch'
+                    elif 'ch_tra' in self.languages:
+                        lang_code = 'chinese_cht'
+                    elif 'ko' in self.languages:
+                        lang_code = 'korean'
+                    elif 'en' in self.languages and len(self.languages) == 1:
+                        lang_code = 'en'
+                        
+                    use_gpu = torch.cuda.is_available()
+                    print(f"[OCREngine] Khởi tạo PaddleOCR (lang={lang_code}). Trạng thái GPU: {use_gpu}")
+                    self.paddle_ocr = PaddleOCR(use_angle_cls=False, lang=lang_code, use_gpu=use_gpu, show_log=False)
+                except Exception as e:
+                    print(f"[OCREngine] Lỗi khởi tạo PaddleOCR: {e}. Tự động fallback sang EasyOCR.")
+                    self.engine_type = 'easyocr'
+                    self._init_reader()
+
+        if self.engine_type == 'easyocr':
+            if self.reader is None:
+                import easyocr
+                import torch
+                use_gpu = torch.cuda.is_available()
+                print(f"[OCREngine] Khởi tạo EasyOCR. Trạng thái GPU: {use_gpu}")
+                self.reader = easyocr.Reader(self.languages, gpu=use_gpu)
 
     def preprocess_image(self, img, mode='none'):
         """
@@ -92,16 +125,39 @@ class OCREngine:
         # Preprocess
         processed = self.preprocess_image(img, mode=preprocess_mode)
         
-        # Run EasyOCR
-        # readtext accepts numpy arrays directly (both grayscale and BGR/RGB)
-        results = self.reader.readtext(processed, width_ths=width_ths, link_threshold=0.55)
+        ocr_results = []
         
-        if not results:
+        if self.engine_type == 'paddle':
+            try:
+                results = self.paddle_ocr.ocr(processed, cls=False)
+                if results and results[0]:
+                    for line in results[0]:
+                        bbox = line[0]  # format: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]
+                        text = line[1][0]
+                        conf = line[1][1]
+                        ocr_results.append((bbox, text, conf))
+            except Exception as e:
+                print(f"[OCREngine] Lỗi khi chạy PaddleOCR: {e}. Thử fallback chạy EasyOCR cho frame này.")
+                if self.reader is None:
+                    import easyocr
+                    import torch
+                    use_gpu = torch.cuda.is_available()
+                    self.reader = easyocr.Reader(self.languages, gpu=use_gpu)
+                results = self.reader.readtext(processed, width_ths=width_ths, link_threshold=0.55)
+                if results:
+                    ocr_results = results
+        else:
+            # Run EasyOCR
+            results = self.reader.readtext(processed, width_ths=width_ths, link_threshold=0.55)
+            if results:
+                ocr_results = results
+        
+        if not ocr_results:
             return ""
             
         # Filter by confidence and sort by vertical position (Y coordinate of top-left)
         valid_results = []
-        for bbox, text, conf in results:
+        for bbox, text, conf in ocr_results:
             if conf >= self.confidence_threshold:
                 # bbox format: [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]
                 top_left_y = bbox[0][1]

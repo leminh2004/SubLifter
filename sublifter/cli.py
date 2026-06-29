@@ -12,7 +12,7 @@ def main():
     parser.add_argument("-o", "--output", help="Path to output subtitle file (default: same folder as video)")
     parser.add_argument("-f", "--format", choices=["srt", "ass"], default="srt", help="Output subtitle format (default: srt)")
     parser.add_argument("-l", "--languages", default="vi,en", help="Comma-separated language codes for OCR, e.g. vi,en (default: vi,en)")
-    parser.add_argument("--sample-rate", type=float, default=1.5, help="Frames to process per second (default: 1.5)")
+    parser.add_argument("--sample-rate", type=float, default=4.0, help="Frames to process per second (default: 4.0)")
     parser.add_argument("--ymin", type=float, default=0.8, help="Top crop boundary percentage [0.0 to 1.0] (default: 0.8)")
     parser.add_argument("--ymax", type=float, default=1.0, help="Bottom crop boundary percentage [0.0 to 1.0] (default: 1.0)")
     parser.add_argument("--xmin", type=float, default=0.0, help="Left crop boundary percentage [0.0 to 1.0] (default: 0.0)")
@@ -22,6 +22,7 @@ def main():
     parser.add_argument("--preprocess", choices=["none", "binarize", "adaptive", "color_mask"], default="none", help="Preprocessing method for image cleaning (default: none)")
     parser.add_argument("--width-ths", type=float, default=0.5, help="Width merge threshold for word grouping (default: 0.5)")
     parser.add_argument("--no-spellcheck", action="store_true", help="Vô hiệu hóa tự động sửa lỗi chính tả và cách từ (Spell Checker)")
+    parser.add_argument("--engine", choices=["paddle", "easyocr"], default="paddle", help="Công cụ OCR sử dụng (default: paddle)")
 
     args = parser.parse_args()
 
@@ -43,6 +44,7 @@ def main():
     print("Bắt đầu trích xuất phụ đề cứng SubLifter")
     print(f"Video đầu vào  : {args.input}")
     print(f"Tệp đầu ra     : {output_path}")
+    print(f"Công cụ OCR    : {args.engine}")
     print(f"Ngôn ngữ       : {langs}")
     print(f"Sửa chính tả   : {'Bật' if use_spellcheck else 'Tắt'}")
     print(f"Vùng cắt (Crop): Y: [{args.ymin:.2f} - {args.ymax:.2f}], X: [{args.xmin:.2f} - {args.xmax:.2f}]")
@@ -52,8 +54,8 @@ def main():
     print(f"Ngưỡng gộp từ  : {args.width_ths}")
     print("=" * 60)
     
-    print("Đang khởi tạo OCREngine (EasyOCR)... (Quá trình này có thể mất một chút thời gian để tải mô hình)")
-    ocr = OCREngine(languages=langs, confidence_threshold=args.conf)
+    print(f"Đang khởi tạo OCREngine ({args.engine})... (Quá trình này có thể mất một chút thời gian để tải mô hình)")
+    ocr = OCREngine(languages=langs, confidence_threshold=args.conf, engine_type=args.engine)
     
     processor = VideoProcessor(
         ocr_engine=ocr,

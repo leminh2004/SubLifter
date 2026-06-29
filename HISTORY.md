@@ -5,12 +5,30 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 5
+- **Tổng số phiên bản**: 6
 - **Thời gian dự án**: Tháng 06/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.1.5. Tích hợp song song PaddleOCR & Cơ chế Fallback tự động
+- **Ngày**: 29/06/2026
+- **Chi tiết thay đổi**:
+  - **Tích hợp song song PaddleOCR**:
+    * Thêm hỗ trợ công cụ nhận diện PaddleOCR mang lại độ chính xác tiếng Việt vượt trội và tốc độ xử lý trên GPU/CPU nhanh hơn đáng kể.
+    * Ánh xạ tự động mã ngôn ngữ preset sang các mã ngôn ngữ tương ứng của PaddleOCR (`vi`, `japan`, `ch`, `chinese_cht`, `korean`, `en`).
+  - **Cơ chế Fallback tự động an toàn**:
+    * Viết lại `OCREngine` để tự động kiểm tra sự khả dụng của PaddleOCR trên máy người dùng.
+    * Nếu chưa cài đặt thư viện hoặc thiếu driver GPU tương thích, hệ thống sẽ tự động chuyển hướng (fallback) sử dụng EasyOCR làm phương án dự phòng, tránh crash app.
+  - **Cập nhật Giao diện & CLI**:
+    * Bổ sung bộ chọn Engine OCR (`PaddleOCR` hoặc `EasyOCR`) trên cả giao diện Web GUI và tham số dòng lệnh CLI (`--engine`).
+    * Thiết lập `PaddleOCR` làm engine mặc định.
+  - **Cấu hình Thư viện & Hướng dẫn cài đặt GPU CUDA**:
+    * Thêm `paddleocr` và `paddlepaddle` vào `requirements.txt` để hỗ trợ cài đặt một lần cho tất cả.
+    * Bổ sung chú thích lệnh cài đặt PyTorch GPU hỗ trợ CUDA 12.4 (`--index-url https://download.pytorch.org/whl/cu124`) và PaddlePaddle GPU ở đầu tệp `requirements.txt` giúp dễ dàng thiết lập tăng tốc card đồ họa.
+
+---
 
 ### 0.1.4. Tối ưu hóa hiệu năng GPU (Adaptive Upscaling)
 - **Ngày**: 29/06/2026
@@ -24,6 +42,10 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
     * Định dạng hiển thị thời gian hoạt động và thời gian ước tính còn lại theo chuẩn `giờ:phút:giây` (`00:00:00`).
     * Ẩn hộp thoại tải tệp (`gr.File`) khi đang quét, chỉ hiện lại với chiều cao rút gọn (`height=70`) khi hoàn tất.
     * Loại bỏ hoàn toàn khung ảnh phụ đề được cắt nhỏ (`cropped_preview`) để tiết kiệm tối đa diện tích hiển thị chiều dọc.
+  - **Tối ưu hóa thuật toán gộp phụ đề & Tần suất quét**:
+    * Loại bỏ giới hạn chiều ngang (xmin=0.0, xmax=1.0) để đảm bảo không bị mất chữ ở hai biên của những dòng phụ đề dài.
+    * Tăng tần suất quét (`sample_rate=4.0`) để giảm thiểu sai số lệch thời gian bắt đầu/kết thúc (sai số tối đa giảm xuống 250ms).
+    * Cải tiến thuật toán `_clean_subtitles` thông minh hơn: hạ ngưỡng similarity xuống `0.70` (hoặc `0.60` nếu lấn thời gian) và thêm bộ so khớp chuỗi con (`is_substring`) để gộp hiệu quả phụ đề chạy chữ dần (typewriter) và karaoke, loại bỏ các dòng lặp/tách dòng không mong muốn.
 
 ---
 

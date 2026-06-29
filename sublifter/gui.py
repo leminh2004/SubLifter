@@ -38,39 +38,40 @@ def make_progress_html(percent, elapsed, eta):
     return html
 
 def get_preview(video_path):
-    """Generate a full frame with crop boundary overlay (85% centered horizontal, top+bottom 20% vertical)."""
+    """Generate a full frame with crop boundary overlay (full width horizontal, top+bottom 20% vertical)."""
     if not video_path or not os.path.exists(video_path):
         return None
         
     cap = cv2.VideoCapture(video_path)
-    ret, frame = cap.read()
-    cap.release()
-    
-    if not ret:
-        return None
+    try:
+        ret, frame = cap.read()
+        if not ret:
+            return None
+            
+        h, w, _ = frame.shape
         
-    h, w, _ = frame.shape
-    
-    # Fixed Coordinates:
-    # Horizontal: 85% width centered -> xmin=0.075, xmax=0.925
-    # Vertical: Top 20% (0.0 to 0.2) & Bottom 20% (0.8 to 1.0)
-    x_start = int(w * 0.075)
-    x_end = int(w * 0.925)
-    y_top_end = int(h * 0.2)
-    y_bottom_start = int(h * 0.8)
-    
-    overlay_frame = frame.copy()
-    
-    # Draw two red boxes for visual crop preview
-    cv2.rectangle(overlay_frame, (x_start, 0), (x_end, y_top_end), (0, 0, 255), 3)
-    cv2.rectangle(overlay_frame, (x_start, y_bottom_start), (x_end, h), (0, 0, 255), 3)
-    
-    # Convert to RGB for Gradio
-    overlay_frame = cv2.cvtColor(overlay_frame, cv2.COLOR_BGR2RGB)
-    
-    return overlay_frame
+        # Fixed Coordinates:
+        # Horizontal: Full width
+        # Vertical: Top 20% (0.0 to 0.2) & Bottom 20% (0.8 to 1.0)
+        x_start = 0
+        x_end = w
+        y_top_end = int(h * 0.2)
+        y_bottom_start = int(h * 0.8)
+        
+        overlay_frame = frame.copy()
+        
+        # Draw two red boxes for visual crop preview (full width)
+        cv2.rectangle(overlay_frame, (x_start, 0), (x_end, y_top_end), (0, 0, 255), 3)
+        cv2.rectangle(overlay_frame, (x_start, y_bottom_start), (x_end, h), (0, 0, 255), 3)
+        
+        # Convert to RGB for Gradio
+        overlay_frame = cv2.cvtColor(overlay_frame, cv2.COLOR_BGR2RGB)
+        
+        return overlay_frame
+    finally:
+        cap.release()
 
-def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck):
+def extract_subtitles(video_path, ocr_engine_name, lang_preset, out_format, use_spellcheck):
     if not video_path or not os.path.exists(video_path):
         yield None, "Lỗi: Vui lòng tải lên hoặc chọn một tệp video hợp lệ.", make_progress_html(0.0, 0.0, 0.0)
         return
@@ -88,18 +89,19 @@ def extract_subtitles(video_path, lang_preset, out_format, use_spellcheck):
         yield None, "Lỗi: Ngôn ngữ không hợp lệ.", make_progress_html(0.0, 0.0, 0.0)
         return
         
+    engine_type = "paddle" if "PaddleOCR" in ocr_engine_name else "easyocr"
     try:
         # Initialize ocr
-        ocr = OCREngine(languages=langs, confidence_threshold=0.35)
+        ocr = OCREngine(languages=langs, confidence_threshold=0.35, engine_type=engine_type)
         
         # Fixed optimal settings under the hood
         processor = VideoProcessor(
             ocr_engine=ocr,
-            sample_rate=1.5,
+            sample_rate=4.0,  # Increased sample_rate to 4.0 for higher timing accuracy (250ms intervals)
             ymin=0.8,
             ymax=1.0,
-            xmin=0.075,
-            xmax=0.925,
+            xmin=0.0,         # Full width
+            xmax=1.0,         # Full width
             diff_threshold=2.0,
             preprocess_mode='none',
             double_zone=True,
@@ -145,8 +147,8 @@ def build_gui():
     with gr.Blocks(title="SubLifter - Trích xuất phụ đề cứng") as demo:
         gr.Markdown(
             """
-            # 🎬 SubLifter - Trích xuất phụ đề cứng
-            Trích xuất phụ đề được ghi cứng (hardsub) từ tệp video và chuyển đổi thành tệp phụ đề `.srt` hoặc `.ass` có thể chỉnh sửa bằng EasyOCR.
+            #🎬 SubLifter - Trích xuất phụ đề cứng
+            Trích xuất phụ đề được ghi cứng (hardsub) từ tệp video và chuyển đổi thành tệp phụ đề `.srt` hoặc `.ass` có thể chỉnh sửa bằng PaddleOCR hoặc EasyOCR.
             """
         )
         
@@ -154,6 +156,13 @@ def build_gui():
             with gr.Column(scale=1):
                 video_input = gr.Video(label="Tải video lên", sources=["upload"])
                 out_format = gr.Radio(["srt", "ass"], value="srt", label="Định dạng phụ đề đầu ra")
+                
+                ocr_engine_name = gr.Radio(
+                    ["PaddleOCR (Khuyên dùng)", "EasyOCR"],
+                    value="PaddleOCR (Khuyên dùng)",
+                    label="Công cụ OCR (Engine)",
+                    info="PaddleOCR cho độ chính xác tiếng Việt vượt trội và tốc độ cao. EasyOCR dùng làm dự phòng."
+                )
                 
                 lang_preset = gr.Dropdown(
                     choices=[
@@ -191,7 +200,8 @@ def build_gui():
                     value="", 
                     lines=17, 
                     max_lines=28,
-                    interactive=False
+                    interactive=False,
+                    autoscroll=False
                 )
                 
                 # Box 1: Tiến độ công việc (height shrunken to fit progress info)
@@ -217,7 +227,7 @@ def build_gui():
         # Click Run
         btn_run.click(
             extract_subtitles,
-            inputs=[video_input, lang_preset, out_format, use_spellcheck],
+            inputs=[video_input, ocr_engine_name, lang_preset, out_format, use_spellcheck],
             outputs=[output_file, preview_subs_box, progress_html]
         )
         
