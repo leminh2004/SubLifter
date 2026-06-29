@@ -5,12 +5,27 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 2
+- **Tổng số phiên bản**: 3
 - **Thời gian dự án**: Tháng 06/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.1.2. Khắc phục lỗi dính liền chữ (width_ths), tối ưu cấu hình mặc định và giám sát GPU
+- **Ngày**: 29/06/2026
+- **Chi tiết thay đổi**:
+  - **Khắc phục lỗi dính liền chữ (thiếu khoảng trắng)**:
+    * Thêm cấu hình tham số `width_ths` (Ngưỡng gộp từ ngang) của EasyOCR trên cả giao diện Web và dòng lệnh CLI.
+    * Cho phép người dùng linh hoạt điều chỉnh (hạ xuống `0.2` - `0.3`) để tách rời các từ bị dính liền dấu cách do khoảng cách ký tự hẹp.
+  - **Cấu hình tối ưu mặc định (Default Settings)**:
+    * Đặt giá trị mặc định cho tốc độ quét là `1.5` khung hình/giây (quét mỗi 0.67s) giúp tối ưu thời gian xử lý và độ chính xác của phụ đề.
+    * Đặt mặc định bộ lọc tiền xử lý khử nhiễu về `none` (Giữ nguyên) để tránh tạo ra nhiễu hạt gây nhận diện sai từ nền video phức tạp.
+    * Đặt mặc định ngưỡng gộp từ ngang `width_ths` về lại `0.5` để đảm bảo nhận diện từ tiếng Anh toàn vẹn, tránh bị tách nhỏ từ.
+  - **Nâng cấp giám sát hoạt động của Card đồ họa (GPU)**:
+    * Tự động kiểm tra tính khả dụng của CUDA (`torch.cuda.is_available()`) khi khởi chạy OCR và truyền tường minh cờ `gpu=use_gpu` vào EasyOCR, đồng thời in thông tin thông báo xác thực GPU đang chạy lên terminal.
+
+---
 
 ### 0.1.1. Bổ sung bộ chọn ngôn ngữ lập sẵn, ẩn hiện vùng quét nâng cao và hoàn thiện giao diện
 - **Ngày**: 29/06/2026
@@ -21,14 +36,6 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
     * Ẩn các thanh trượt tọa độ crop mặc định và thay thế bằng menu thả xuống chọn vùng quét (Biên dưới, Biên trên, Cả trên và dưới, Toàn màn hình, Tự chọn).
     * Hỗ trợ chế độ "Cả trên và dưới (20% mỗi bên)" bằng cách vẽ đồng thời hai khung đỏ và xếp chồng hai vùng crop theo chiều dọc để OCR một lần cực kỳ nhanh.
     * Sử dụng cơ chế phản hồi động của Gradio để tự động ẩn/hiển thị nhóm thanh trượt thủ công chỉ khi chọn chế độ "Tự chọn (Chỉnh tay)".
-  - **Khắc phục lỗi dính liền chữ (thiếu khoảng trắng)**:
-    * Thêm cấu hình tham số `width_ths` (Ngưỡng gộp từ ngang) của EasyOCR trên cả giao diện Web và dòng lệnh CLI.
-    * Cho phép người dùng hạ thấp ngưỡng này xuống `0.2` - `0.3` để tách rời các từ bị dính liền dấu cách do khoảng cách ký tự hẹp.
-  - **Cấu hình tối ưu hóa mặc định (Default Settings) & Giám sát GPU**:
-    * Đặt giá trị mặc định cho tốc độ quét là `1.5` khung hình/giây (quét mỗi 0.67s) giúp tối ưu thời gian xử lý và độ chính xác của phụ đề.
-    * Thiết lập mặc định bộ lọc tiền xử lý khử nhiễu là `adaptive` (Gaussian) để tối ưu nhất cho kiểu hardsub có viền đen chữ trắng/gradient.
-    * Thiết lập mặc định ngưỡng gộp từ ngang `width_ths` là `0.3` để tự động chống dính chữ.
-    * Nâng cấp ghi nhật ký khi khởi tạo EasyOCR, tự động kiểm tra `torch.cuda.is_available()` và truyền tường minh cờ `gpu=use_gpu` đồng thời in thông báo xác thực GPU hoạt động lên terminal.
 
 ---
 

@@ -19,8 +19,8 @@ def main():
     parser.add_argument("--xmax", type=float, default=1.0, help="Right crop boundary percentage [0.0 to 1.0] (default: 1.0)")
     parser.add_argument("--diff-threshold", type=float, default=2.0, help="Pixel difference threshold to trigger OCR. Set to 0 to run OCR on all sampled frames (default: 2.0)")
     parser.add_argument("-c", "--conf", type=float, default=0.35, help="OCR confidence threshold [0.0 to 1.0] (default: 0.35)")
-    parser.add_argument("--preprocess", choices=["none", "binarize", "adaptive", "color_mask"], default="adaptive", help="Preprocessing method for image cleaning (default: adaptive)")
-    parser.add_argument("--width-ths", type=float, default=0.3, help="Width merge threshold for word grouping (default: 0.3)")
+    parser.add_argument("--preprocess", choices=["none", "binarize", "adaptive", "color_mask"], default="none", help="Preprocessing method for image cleaning (default: none)")
+    parser.add_argument("--width-ths", type=float, default=0.5, help="Width merge threshold for word grouping (default: 0.5)")
 
     args = parser.parse_args()
 

@@ -189,12 +189,12 @@ def build_gui():
                     sample_rate = gr.Slider(0.5, 10.0, value=1.5, step=0.5, label="Tốc độ quét (Khung hình/giây)")
                     diff_thresh = gr.Slider(0.0, 10.0, value=2.0, step=0.5, label="Ngưỡng lệch khung hình (0 để quét toàn bộ)")
                     conf_thresh = gr.Slider(0.1, 0.9, value=0.35, step=0.05, label="Ngưỡng độ tin cậy OCR")
-                    width_ths = gr.Slider(0.1, 1.0, value=0.3, step=0.05, label="Ngưỡng gộp chữ ngang (Width Threshold)", info="Giá trị nhỏ hơn (ví dụ: 0.2 - 0.3) sẽ ngăn các từ bị dính liền mất dấu cách. Mặc định tối ưu: 0.3.")
+                    width_ths = gr.Slider(0.1, 1.0, value=0.5, step=0.05, label="Ngưỡng gộp chữ ngang (Width Threshold)", info="Giá trị mặc định là 0.5. Hạ xuống 0.2 - 0.3 nếu từ bị dính nhau. Tăng lên nếu từ bị rời rạc.")
                     preprocess_mode = gr.Dropdown(
                         choices=["none", "binarize", "adaptive", "color_mask"], 
-                        value="adaptive", 
+                        value="none", 
                         label="Phương pháp tiền xử lý ảnh (Khử nhiễu nền)",
-                        info="none: Giữ nguyên | binarize: Nhị phân hóa | adaptive: Tách viền (Khuyên dùng cho chữ có viền đen) | color_mask: Chỉ lấy màu trắng/vàng"
+                        info="none: Giữ nguyên (Mặc định tối ưu cho hầu hết video) | binarize: Nhị phân hóa | adaptive: Tách viền (Chỉ dùng khi chữ có viền đen dày và nền cực sạch) | color_mask: Chỉ lấy màu trắng/vàng"
                     )
                     
                 btn_run = gr.Button("🚀 Bắt đầu trích xuất phụ đề", variant="primary")
