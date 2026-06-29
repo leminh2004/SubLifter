@@ -5,12 +5,21 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 4
+- **Tổng số phiên bản**: 5
 - **Thời gian dự án**: Tháng 06/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.1.4. Tối ưu hóa hiệu năng GPU (Adaptive Upscaling)
+- **Ngày**: 29/06/2026
+- **Chi tiết thay đổi**:
+  - **Tối ưu hóa hiệu năng GPU (Adaptive Upscaling)**:
+    * Thay thế việc phóng đại 2x cố định bằng cơ chế co giãn thích ứng: chỉ phóng to vùng ảnh khi chiều cao crop dưới 150px.
+    * Giữ nguyên kích thước gốc đối với video độ phân giải cao (1080p/4K) giúp giải phóng băng thông tính toán và khôi phục tốc độ GPU siêu nhanh như ban đầu.
+
+---
 
 ### 0.1.3. Tối giản hóa giao diện, tích hợp bộ kiểm tra chính tả & cách từ (Spell Checker) bảo toàn Romaji và ETA
 - **Ngày**: 29/06/2026
