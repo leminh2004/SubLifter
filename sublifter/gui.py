@@ -90,6 +90,7 @@ def extract_subtitles(video_path, ocr_engine_name, lang_preset, out_format, use_
         return
         
     engine_type = "paddle" if "PaddleOCR" in ocr_engine_name else "easyocr"
+    generator = None
     try:
         # Initialize ocr
         ocr = OCREngine(languages=langs, confidence_threshold=0.35, engine_type=engine_type)
@@ -142,6 +143,9 @@ def extract_subtitles(video_path, ocr_engine_name, lang_preset, out_format, use_
         import traceback
         exc = traceback.format_exc()
         yield gr.update(visible=False), f"Đã xảy ra lỗi:\n{e}\n\nChi tiết:\n{exc}", make_progress_html(0.0, 0.0, 0.0)
+    finally:
+        if generator is not None:
+            generator.close()
 
 def build_gui():
     with gr.Blocks(title="SubLifter - Trích xuất phụ đề cứng") as demo:

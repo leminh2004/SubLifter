@@ -52,7 +52,7 @@ SubLifter là một công cụ Python được thiết kế để trích xuất 
    pip install paddlepaddle -i https://www.paddlepaddle.org.cn/packages/simple/
    
    # Bản chạy GPU CUDA (yêu cầu máy có card NVIDIA để chạy siêu tốc):
-   pip install paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/simple/
+   pip install paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/stable/cu120/
    ```
 
 ---

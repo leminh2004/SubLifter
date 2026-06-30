@@ -5,12 +5,23 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 6
+- **Tổng số phiên bản**: 7
 - **Thời gian dự án**: Tháng 06/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.1.6. Khắc phục lỗi khóa tệp video trên Windows & Chỉ dẫn cài đặt GPU CUDA
+- **Ngày**: 30/06/2026
+- **Chi tiết thay đổi**:
+  - **Khắc phục lỗi khóa tệp video (Video not playable)**:
+    * Bổ sung cơ chế đóng Generator chủ động (`generator.close()`) trong khối `finally` của hàm `extract_subtitles` tại `gui.py`.
+    * Đảm bảo giải phóng tệp tin video ngay lập tức (gọi `cap.release()`) sau khi quét xong hoặc khi xảy ra ngoại lệ, giúp trình duyệt của Gradio luôn phát được video bình thường trên Windows.
+  - **Cập nhật chỉ dẫn cài đặt tăng tốc GPU**:
+    * Bổ sung chú thích lệnh cài đặt PyTorch GPU hỗ trợ CUDA 12.4 (`--index-url https://download.pytorch.org/whl/cu124`) và PaddlePaddle GPU trực tiếp lên đầu tệp `requirements.txt` để hỗ trợ thiết lập môi trường clone nhanh chóng.
+
+---
 
 ### 0.1.5. Tích hợp song song PaddleOCR & Cơ chế Fallback tự động
 - **Ngày**: 29/06/2026
@@ -24,9 +35,8 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
   - **Cập nhật Giao diện & CLI**:
     * Bổ sung bộ chọn Engine OCR (`PaddleOCR` hoặc `EasyOCR`) trên cả giao diện Web GUI và tham số dòng lệnh CLI (`--engine`).
     * Thiết lập `PaddleOCR` làm engine mặc định.
-  - **Cấu hình Thư viện & Hướng dẫn cài đặt GPU CUDA**:
+  - **Cấu hình Thư viện**:
     * Thêm `paddleocr` và `paddlepaddle` vào `requirements.txt` để hỗ trợ cài đặt một lần cho tất cả.
-    * Bổ sung chú thích lệnh cài đặt PyTorch GPU hỗ trợ CUDA 12.4 (`--index-url https://download.pytorch.org/whl/cu124`) và PaddlePaddle GPU ở đầu tệp `requirements.txt` giúp dễ dàng thiết lập tăng tốc card đồ họa.
 
 ---
 
