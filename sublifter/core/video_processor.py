@@ -46,7 +46,19 @@ class VideoProcessor:
         """
         Process the video and yield progress (progress_ratio, elapsed_seconds, eta_seconds, preview_subtitles).
         """
-        cap = cv2.VideoCapture(video_path)
+        import tempfile
+        import shutil
+        import os
+        
+        # Create a temporary copy to avoid locking the original file on Windows
+        temp_dir = tempfile.gettempdir()
+        temp_video_path = os.path.join(temp_dir, f"sublifter_process_{os.path.basename(video_path)}")
+        try:
+            shutil.copy2(video_path, temp_video_path)
+        except Exception:
+            temp_video_path = video_path
+            
+        cap = cv2.VideoCapture(temp_video_path)
         if not cap.isOpened():
             raise ValueError(f"Could not open video file: {video_path}")
 
@@ -187,6 +199,12 @@ class VideoProcessor:
             del cap
             import gc
             gc.collect()
+            import os
+            if 'temp_video_path' in locals() and temp_video_path != video_path and os.path.exists(temp_video_path):
+                try:
+                    os.remove(temp_video_path)
+                except Exception:
+                    pass
 
     def process_video(self, video_path: str, progress_callback=None):
         """

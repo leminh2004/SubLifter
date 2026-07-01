@@ -47,7 +47,18 @@ def get_preview(video_path):
     if not video_path or not os.path.exists(video_path):
         return None
         
-    cap = cv2.VideoCapture(video_path)
+    import tempfile
+    import shutil
+    
+    # Create a temporary copy to avoid locking the original file on Windows
+    temp_dir = tempfile.gettempdir()
+    temp_video_path = os.path.join(temp_dir, f"sublifter_preview_{os.path.basename(video_path)}")
+    try:
+        shutil.copy2(video_path, temp_video_path)
+    except Exception:
+        temp_video_path = video_path
+        
+    cap = cv2.VideoCapture(temp_video_path)
     try:
         ret, frame = cap.read()
         if not ret:
@@ -78,6 +89,11 @@ def get_preview(video_path):
         del cap
         import gc
         gc.collect()
+        if temp_video_path != video_path and os.path.exists(temp_video_path):
+            try:
+                os.remove(temp_video_path)
+            except Exception:
+                pass
 
 def extract_subtitles(video_path, ocr_engine_name, lang_preset, out_format, use_spellcheck):
     if not video_path or not os.path.exists(video_path):
