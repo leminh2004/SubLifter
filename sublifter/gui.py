@@ -75,6 +75,9 @@ def get_preview(video_path):
         return overlay_frame
     finally:
         cap.release()
+        del cap
+        import gc
+        gc.collect()
 
 def extract_subtitles(video_path, ocr_engine_name, lang_preset, out_format, use_spellcheck):
     if not video_path or not os.path.exists(video_path):
@@ -231,13 +234,14 @@ def build_gui():
                 )
                 
         # Update preview when video is uploaded
-        video_input.change(get_preview, inputs=[video_input], outputs=[preview_image])
+        video_input.change(get_preview, inputs=[video_input], outputs=[preview_image], scroll_to_output=False)
         
         # Click Run
         btn_run.click(
             extract_subtitles,
             inputs=[video_input, ocr_engine_name, lang_preset, out_format, use_spellcheck],
-            outputs=[output_file, preview_subs_box, progress_html]
+            outputs=[output_file, preview_subs_box, progress_html],
+            scroll_to_output=False
         )
         
     return demo

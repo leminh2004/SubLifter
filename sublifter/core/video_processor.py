@@ -6,8 +6,10 @@ from .sub_writer import write_srt, write_ass
 from .spell_checker import SpellCheckerPipeline
 
 def get_text_similarity(str1: str, str2: str) -> float:
-    """Calculate similarity ratio between two strings."""
-    return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
+    """Calculate similarity ratio between two strings, ignoring spaces and case."""
+    s1 = "".join(str1.lower().split())
+    s2 = "".join(str2.lower().split())
+    return difflib.SequenceMatcher(None, s1, s2).ratio()
 
 class VideoProcessor:
     def __init__(self, ocr_engine, sample_rate=2.0, ymin=0.8, ymax=1.0, xmin=0.0, xmax=1.0, diff_threshold=2.0, preprocess_mode='none', double_zone=False, width_ths=0.5, use_spellcheck=True, lang_preset=""):
@@ -78,101 +80,100 @@ class VideoProcessor:
             prev_norm_frame = None
             prev_text = ""
             
-            frame_idx = 0
+            current_frame = 0
             start_time = time.time()
             
-            while frame_idx < total_frames:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
-                if not ret:
+            while current_frame < total_frames:
+                if not cap.grab():
                     break
-                    
-                timestamp = frame_idx / fps
                 
-                # Crop the subtitle region
-                if self.double_zone:
-                    y_top_end = int(height * 0.2)
-                    y_bottom_start = int(height * 0.8)
-                    top_crop = frame[0:y_top_end, x_start:x_end]
-                    bottom_crop = frame[y_bottom_start:height, x_start:x_end]
-                    if top_crop.size > 0 and bottom_crop.size > 0:
-                        cropped = np.vstack([top_crop, bottom_crop])
-                    else:
-                        cropped = frame[y_start:y_end, x_start:x_end]
-                else:
-                    cropped = frame[y_start:y_end, x_start:x_end]
-                if cropped.size == 0:
-                    frame_idx += step
-                    continue
-                    
-                # Normalize cropped frame (grayscale & fixed size for change detection)
-                norm_w, norm_h = 320, 80
-                gray_cropped = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
-                norm_frame = cv2.resize(gray_cropped, (norm_w, norm_h))
-                
-                # Detect pixel difference
-                should_run_ocr = True
-                if self.diff_threshold > 0 and prev_norm_frame is not None:
-                    # Calculate mean absolute difference
-                    diff = cv2.absdiff(norm_frame, prev_norm_frame)
-                    mean_diff = np.mean(diff)
-                    if mean_diff < self.diff_threshold:
-                        should_run_ocr = False
-                
-                prev_norm_frame = norm_frame
-                
-                # Extract text
-                if should_run_ocr:
-                    text = self.ocr_engine.extract_text(cropped, preprocess_mode=self.preprocess_mode, width_ths=self.width_ths)
-                    if self.use_spellcheck and text and self.spell_checker:
-                        text = self.spell_checker.correct(text, self.lang_preset)
-                else:
-                    # Re-use previous text if difference is negligible
-                    text = prev_text
-                
-                prev_text = text
-
-                # Manage subtitle states
-                if text:
-                    if active_sub:
-                        similarity = get_text_similarity(active_sub['text'], text)
-                        if similarity > 0.65:
-                            # Extend current subtitle
-                            active_sub['end'] = timestamp + (step / fps)
+                if current_frame % step == 0:
+                    ret, frame = cap.retrieve()
+                    if ret:
+                        timestamp = current_frame / fps
+                        
+                        # Crop the subtitle region
+                        if self.double_zone:
+                            y_top_end = int(height * 0.2)
+                            y_bottom_start = int(height * 0.8)
+                            top_crop = frame[0:y_top_end, x_start:x_end]
+                            bottom_crop = frame[y_bottom_start:height, x_start:x_end]
+                            if top_crop.size > 0 and bottom_crop.size > 0:
+                                cropped = np.vstack([top_crop, bottom_crop])
+                            else:
+                                cropped = frame[y_start:y_end, x_start:x_end]
                         else:
-                            # Text changed, save previous and start new
-                            subtitles.append(active_sub)
-                            active_sub = {
-                                'start': timestamp,
-                                'end': timestamp + (step / fps),
-                                'text': text
-                            }
-                    else:
-                        # New subtitle starts
-                        active_sub = {
-                            'start': timestamp,
-                            'end': timestamp + (step / fps),
-                            'text': text
-                        }
-                else:
-                    # No text detected
-                    if active_sub:
-                        subtitles.append(active_sub)
-                        active_sub = None
+                            cropped = frame[y_start:y_end, x_start:x_end]
+                        
+                        if cropped.size > 0:
+                            # Normalize cropped frame (grayscale & fixed size for change detection)
+                            norm_w, norm_h = 320, 80
+                            gray_cropped = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+                            norm_frame = cv2.resize(gray_cropped, (norm_w, norm_h))
+                            
+                            # Detect pixel difference
+                            should_run_ocr = True
+                            if self.diff_threshold > 0 and prev_norm_frame is not None:
+                                # Calculate mean absolute difference
+                                diff = cv2.absdiff(norm_frame, prev_norm_frame)
+                                mean_diff = np.mean(diff)
+                                if mean_diff < self.diff_threshold:
+                                    should_run_ocr = False
+                            
+                            prev_norm_frame = norm_frame
+                            
+                            # Extract text
+                            if should_run_ocr:
+                                text = self.ocr_engine.extract_text(cropped, preprocess_mode=self.preprocess_mode, width_ths=self.width_ths)
+                                if self.use_spellcheck and text and self.spell_checker:
+                                    text = self.spell_checker.correct(text, self.lang_preset)
+                            else:
+                                # Re-use previous text if difference is negligible
+                                text = prev_text
+                            
+                            prev_text = text
+
+                            # Manage subtitle states
+                            if text:
+                                if active_sub:
+                                    similarity = get_text_similarity(active_sub['text'], text)
+                                    if similarity > 0.65:
+                                        # Extend current subtitle
+                                        active_sub['end'] = timestamp + (step / fps)
+                                    else:
+                                        # Text changed, save previous and start new
+                                        subtitles.append(active_sub)
+                                        active_sub = {
+                                            'start': timestamp,
+                                            'end': timestamp + (step / fps),
+                                            'text': text
+                                        }
+                                else:
+                                    # New subtitle starts
+                                    active_sub = {
+                                        'start': timestamp,
+                                        'end': timestamp + (step / fps),
+                                        'text': text
+                                    }
+                            else:
+                                # No text detected
+                                if active_sub:
+                                    subtitles.append(active_sub)
+                                    active_sub = None
+                            
+                            # Progress reporting
+                            progress = current_frame / total_frames
+                            elapsed = time.time() - start_time
+                            eta = (elapsed / progress - elapsed) if progress > 0 else 0
+                            
+                            # Combine active subtitle with accumulated subtitles for preview
+                            preview_subs = list(subtitles)
+                            if active_sub:
+                                preview_subs.append(active_sub)
+                                
+                            yield progress, elapsed, eta, preview_subs
                 
-                # Progress reporting
-                progress = frame_idx / total_frames
-                elapsed = time.time() - start_time
-                eta = (elapsed / progress - elapsed) if progress > 0 else 0
-                
-                # Combine active subtitle with accumulated subtitles for preview
-                preview_subs = list(subtitles)
-                if active_sub:
-                    preview_subs.append(active_sub)
-                    
-                yield progress, elapsed, eta, preview_subs
-                
-                frame_idx += step
+                current_frame += 1
 
             # Flush the last active subtitle if any
             if active_sub:
@@ -183,6 +184,9 @@ class VideoProcessor:
             yield 1.0, time.time() - start_time, 0.0, cleaned_subtitles
         finally:
             cap.release()
+            del cap
+            import gc
+            gc.collect()
 
     def process_video(self, video_path: str, progress_callback=None):
         """
@@ -259,7 +263,7 @@ class VideoProcessor:
                 if len(clean_txt) <= 2 or clean_txt.isdigit():
                     continue
                     
-            if duration >= 0.4:
+            if duration >= 0.3:
                 final_subs.append(sub)
                 
         return final_subs

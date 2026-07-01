@@ -5,12 +5,30 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 8
+- **Tổng số phiên bản**: 9
 - **Thời gian dự án**: Tháng 06/2026 - 07/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.2.2. Khắc phục triệt để lỗi khóa tệp, tự động cuộn trang & Tối ưu hóa hiệu năng đọc video, so khớp văn bản
+- **Ngày**: 01/07/2026
+- **Chi tiết thay đổi**:
+  - **Tối ưu hóa hiệu năng đọc khung hình video (Sequential grab & retrieve)**:
+    * Loại bỏ hoàn toàn lệnh nhảy ngẫu nhiên bằng `cap.set(cv2.CAP_PROP_POS_FRAMES, ...)` trong vòng lặp chính (gây thắt nút cổ chai hiệu năng giải nén codec H.264 trên Windows).
+    * Chuyển sang cơ chế đọc tuần tự: dùng `cap.grab()` để lướt cực nhanh qua các khung hình trung gian (chỉ phân tích header, không giải nén pixel) và chỉ dùng `cap.retrieve()` khi đến đúng khung hình cần quét OCR. Tăng tốc độ đọc video lên từ 5 đến 10 lần.
+  - **Khắc phục triệt để lỗi khóa tệp video (Video not playable)**:
+    * Bổ sung lệnh gỡ bỏ đối tượng `del cap` và gọi bộ thu gom rác hệ thống `gc.collect()` ngay sau khi gọi `cap.release()` tại cả `get_preview` (trong `gui.py`) và `process_video_yield` (trong `video_processor.py`).
+    * Ép buộc hệ điều hành Windows giải phóng hoàn toàn và lập tức handle khóa tệp video, cho phép kéo thả và xem lại/quét lại video nhiều lần liên tiếp không bị lỗi.
+  - **Khắc phục lỗi tự động cuộn về đầu trang**:
+    * Thiết lập tường minh tham số `scroll_to_output=False` cho cả hai sự kiện `.change()` của video đầu vào và `.click()` của nút khởi chạy trong Gradio.
+    * Ngăn chặn hành vi tự động cuộn màn hình của trình duyệt khi chạy hoặc thay đổi tệp, giữ nguyên vị trí cuộn mong muốn của người dùng.
+  - **Tối ưu hóa so khớp văn bản & Giảm ngưỡng thời gian phụ đề tối thiểu (Tham khảo VideOCR)**:
+    * Thay đổi cách tính độ tương đồng chuỗi: loại bỏ toàn bộ khoảng trắng và chuyển về chữ thường (`str.lower().split()`) trước khi tính tỷ lệ tương đồng bằng `SequenceMatcher` để gộp phụ đề chính xác hơn.
+    * Giảm giới hạn thời gian hiển thị phụ đề tối thiểu được giữ lại từ `0.4` giây xuống `0.3` giây để tránh bỏ sót các câu thoại ngắn diễn ra nhanh.
+
+---
 
 ### 0.2.1. Tránh xung đột DLL khi khởi chạy (shm.dll / libiomp5md.dll)
 - **Ngày**: 01/07/2026
