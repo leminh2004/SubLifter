@@ -1,3 +1,8 @@
+try:
+    import torch
+except ImportError:
+    pass
+
 import gradio as gr
 import cv2
 import os

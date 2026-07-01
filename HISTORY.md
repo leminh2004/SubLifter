@@ -5,12 +5,21 @@ Tài liệu này ghi lại toàn bộ lịch sử phiên bản của dự án ph
 ---
 
 ## Tóm tắt chung
-- **Tổng số phiên bản**: 7
-- **Thời gian dự án**: Tháng 06/2026.
+- **Tổng số phiên bản**: 8
+- **Thời gian dự án**: Tháng 06/2026 - 07/2026.
 
 ---
 
 ## Chi tiết các Phiên bản (Từ mới nhất đến cũ nhất)
+
+### 0.2.1. Tránh xung đột DLL khi khởi chạy (shm.dll / libiomp5md.dll)
+- **Ngày**: 01/07/2026
+- **Chi tiết thay đổi**:
+  - **Tránh xung đột DLL khi khởi chạy**:
+    * Bổ sung cơ chế nạp trước PyTorch (`import torch` ở đầu `gui.py` và `cli.py`) để ưu tiên tải các thư viện DLL chính xác của nó vào bộ nhớ Windows.
+    * Giải quyết dứt điểm lỗi xung đột nạp DLL (`WinError 127` ở `shm.dll`) xảy ra khi các thư viện khác (như `paddleocr` hoặc `numpy`) chiếm quyền nạp trước PyTorch.
+
+---
 
 ### 0.1.6. Khắc phục lỗi khóa tệp video trên Windows & Chỉ dẫn cài đặt GPU CUDA
 - **Ngày**: 30/06/2026

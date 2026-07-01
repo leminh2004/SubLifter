@@ -1,3 +1,8 @@
+try:
+    import torch
+except ImportError:
+    pass
+
 import argparse
 import os
 import sys
